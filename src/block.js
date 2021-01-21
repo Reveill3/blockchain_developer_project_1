@@ -39,14 +39,16 @@ class Block {
         let self = this;
         return new Promise((resolve, reject) => {
             // Save in auxiliary variable the current block hash
-            const currentHash = this.hash                                
+            const currentHash = self.hash
+            self.hash = null                                
             // Recalculate the hash of the Block
-            const validateHash = SHA256(self).toString()
+            let newHash = SHA256(JSON.stringify(self)).toString()
+            self.hash = currentHash
             // Comparing if the hashes changed
-            const validated = currentHash === validateHash
+            const validated = currentHash === newHash
             // Returning the Block is not valid
             if (!validated) {
-              reject(false)
+              resolve(false)
             }
             // Returning the Block is valid
             resolve(true)
@@ -69,14 +71,11 @@ class Block {
         const decodedBlockData = hex2ascii(this.body)
         const parsedData = JSON.parse(decodedBlockData)
         // Resolve with the data if the object isn't the Genesis block
-        return new Promise((resolve, reject) => {
-            if (this.height > 0) {
-              resolve(parsedData)
-            } else {
-              reject("There is no data in the genesis block")
-            }
-        })
-
+        if (this.height > 0) {
+          return parsedData
+        } else {
+          return
+        }
     }
 
 }

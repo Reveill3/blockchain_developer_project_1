@@ -65,22 +65,18 @@ class Blockchain {
         let self = this;
         return new Promise(async (resolve, reject) => {
           try {
-            const blockHash = SHA256(block).toString()
-            block.hash = blockHash
-            block.time = Date.now()
-            if (self.height === -1){
-              self.chain.push(block)
-              self.height += 1
-              resolve(block)
-            } else {
+            if (self.height > -1){
               const prevBlock = self.chain[self.height]
               const previousBlockHash = prevBlock.hash
               block.height = self.height + 1
               block.previousBlockHash = previousBlockHash
-              self.height += 1
-              self.chain.push(block)
-              resolve(block)
-            }          
+            }
+            self.height += 1
+            block.time = Date.now()
+            const blockHash = SHA256(block).toString()
+            block.hash = blockHash
+            self.chain.push(block)
+            resolve(block)
           } catch (error) {
             reject(error)
           }          
@@ -128,14 +124,12 @@ class Blockchain {
           //   reject("Star not submitted within 5 minutes of requesting message.")
           // }
           const verified = bitcoinMessage.verify(message, address, signature)
-          const chainErrors = await this.validateChain()
-          if (verified && !chainErrors.length>0){
+          if (verified){
             const newBlock = new BlockClass.Block({owner: address, star})
             let addingBlock = await self._addBlock(newBlock)
-            resolve(newBlock)
+            resolve(addingBlock)
           }
           reject("Message not verified")
-          
         });
     }
 
@@ -148,13 +142,13 @@ class Blockchain {
     getBlockByHash(hash) {
         let self = this;
         return new Promise((resolve, reject) => {
-           const returnedBlocks = self.chain.filter(block => block.hash === hash)
-           let length = returnedBlocks.length
-           if (length === 1){
-            resolve(returnedBlocks[0])            
+           const returnedBlock = self.chain.find(block => block.hash === hash)
+           if (returnedBlock){
+            resolve(returnedBlock)
            } else {
              reject("Block not found")
            }
+            
         });
     }
 
@@ -166,7 +160,7 @@ class Blockchain {
     getBlockByHeight(height) {
         let self = this;
         return new Promise((resolve, reject) => {
-            let block = self.chain.filter(p => (p.height === height))[0];
+            let block = self.chain.find(p => (p.height === height));
             if(block){
                 resolve(block);
             } else {
@@ -185,17 +179,17 @@ class Blockchain {
         let self = this;
         let stars = [];
         return new Promise((resolve, reject) => {
-           const filteredBlocks = self.chain.filter(async (block) => {
+           const filteredBlocks = self.chain.filter((block) => {
              try {
-              const decodedBlockData = await block.getBData()
+              const decodedBlockData = block.getBData()
               return  decodedBlockData.owner === address
              } catch (error) {
                console.log(error)
              }  
             })
-            let retrieveStars = filteredBlocks.map(async (block) => {
+            let retrieveStars = filteredBlocks.map((block) => {
               try {
-                const decodedBlockData = await block.getBData()
+                const decodedBlockData = block.getBData()
                 stars.push(decodedBlockData)
                 return decodedBlockData               
               } catch (error) {
@@ -219,29 +213,21 @@ class Blockchain {
           self.chain.forEach(block => {
             let errorObject = {validateError: null, linkError: null}
             const validated = block.validate()
+            let chainLinked = false
             if (block.height > 0) {
-              const chainLinked = block.previousBlockHash === self.chain[block.height - 1].previousBlockHash
-              if (!validated){
-                errorObject.validateError = `Block of height ${block.height} failed to validate`
-              }
-              if(!chainLinked){
-                errorObject.linkError = `Block of height ${block.height}'s prevHash is not equal to that blocks hash`
-              }
-              if(!validated || !chainLinked){
-                errorLog.push(errorObject)
-              } 
+              chainLinked = block.previousBlockHash === self.chain[block.height - 1].hash
             } else {
-              const chainLinked = block.previousBlockHash === null
-              if (!validated){
-                errorObject.validateError = `Block of height ${block.height} failed to validate`
-              }
-              if(!chainLinked){
-                errorObject.linkError = `Block of height ${block.height}'s prevHash is not equal to that blocks hash`
-              }
-              if(!validated || !chainLinked){
-                errorLog.push(errorObject)
-              } 
-            }          
+              chainLinked = block.previousBlockHash === null
+            }
+            if (!validated){
+              errorObject.validateError = `Block of height ${block.height} failed to validate`
+            }
+            if(!chainLinked){
+              errorObject.linkError = `Block of height ${block.height}'s prevHash is not equal to that blocks hash`
+            }
+            if(!validated || !chainLinked){
+              errorLog.push(errorObject)
+            }           
           })
           resolve(errorLog)
         });
