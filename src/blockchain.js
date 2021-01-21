@@ -120,14 +120,22 @@ class Blockchain {
           const messageTime = parseInt(message.split(':')[1])
           let currentTime = parseInt(new Date().getTime().toString().slice(0, -3))
           let timeDiff = currentTime - messageTime
-          // if (timeDiff >= 300){
-          //   reject("Star not submitted within 5 minutes of requesting message.")
-          // }
+          if (timeDiff >= 300){
+            reject("Star not submitted within 5 minutes of requesting message.")
+          }
           const verified = bitcoinMessage.verify(message, address, signature)
           if (verified){
             const newBlock = new BlockClass.Block({owner: address, star})
-            let addingBlock = await self._addBlock(newBlock)
-            resolve(addingBlock)
+            try {
+              let addingBlock = await self._addBlock(newBlock)
+              let errors = await self.validateChain()
+              if ( errors.length > 0 ){
+                reject(errors)
+              }
+              resolve(addingBlock)
+            } catch (error) {
+              console.log(error)
+            } 
           }
           reject("Message not verified")
         });
@@ -210,9 +218,9 @@ class Blockchain {
         let self = this;
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
-          self.chain.forEach(block => {
+          self.chain.forEach(async block => {
             let errorObject = {validateError: null, linkError: null}
-            const validated = block.validate()
+            const validated = await block.validate()
             let chainLinked = false
             if (block.height > 0) {
               chainLinked = block.previousBlockHash === self.chain[block.height - 1].hash
